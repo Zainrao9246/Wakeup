@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">WakeProof</string>
+    <string name="nav_alarms">Alarms</string>
+    <string name="nav_clock">Clock</string>
+    <string name="nav_timer">Timer</string>
+    <string name="nav_stopwatch">Stopwatch</string>
+    <string name="cd_dawn_banner">Pre-dawn horizon illustration</string>
+    <string name="cd_add_alarm">Create new alarm</string>
+    <string name="cd_copy_proof">Copy Awake Proof text</string>
+    <string name="cd_regenerate_proof">Generate new Awake Proof text</string>
+    <string name="cd_test_ring">Test alarm ring now</string>
+    <string name="cd_edit_alarm">Edit alarm</string>
+    <string name="cd_delete_alarm">Delete alarm</string>
+    <string name="cd_back">Navigate back</string>
+    <string name="cd_paste_proof">Paste from clipboard</string>
+    <string name="error_empty_proof">Please enter or paste your Awake Proof text.</string>
+    <string name="error_wrong_proof">Awake Proof text does not match. Alarm stays armed!</string>
+</resources>

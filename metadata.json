@@ -1,0 +1,6 @@
+{
+  "name": "WakeProof",
+  "description": "Anti-oversleeping alarm clock app for Fajr and daily wake-ups featuring persistent 1-minute re-ring loops and Awake Proof text verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
