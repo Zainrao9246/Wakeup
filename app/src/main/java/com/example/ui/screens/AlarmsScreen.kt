@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -68,6 +69,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +90,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.R
 import com.example.alarm.AlarmScheduler
 import com.example.alarm.MotivationalMessage
@@ -152,10 +157,45 @@ fun AlarmsScreen(
     val audioManager = remember {
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
+    val notificationManager = remember {
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    }
     var alarmVolumeLow by remember {
         val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM).coerceAtLeast(1)
         mutableStateOf(current * 100 / max < 20)
+    }
+    var canUseFullScreenIntent by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                notificationManager.canUseFullScreenIntent()
+            } else {
+                true
+            }
+        )
+    }
+    var exactAlarmsAllowed by remember(canScheduleExactAlarms) {
+        mutableStateOf(canScheduleExactAlarms)
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    canUseFullScreenIntent = notificationManager.canUseFullScreenIntent()
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+                    exactAlarmsAllowed = am.canScheduleExactAlarms()
+                }
+                val current = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+                val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM).coerceAtLeast(1)
+                alarmVolumeLow = current * 100 / max < 20
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val todayEpoch = remember(uiState.currentTimeMillis) {
@@ -217,7 +257,7 @@ fun AlarmsScreen(
                 }
             }
 
-            if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!exactAlarmsAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 item {
                     PermissionBannerCard(
                         title = "Allow Exact Alarms",
@@ -225,6 +265,22 @@ fun AlarmsScreen(
                         buttonLabel = "Open Settings",
                         onClick = {
                             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                data = Uri.parse("package:${context.packageName}")
+                            }
+                            runCatching { context.startActivity(intent) }
+                        }
+                    )
+                }
+            }
+
+            if (!canUseFullScreenIntent && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                item {
+                    PermissionBannerCard(
+                        title = "Allow Full-Screen Lock Alerts",
+                        body = "Required on Android 14+ so the Awake Proof screen opens directly over your lock screen.",
+                        buttonLabel = "Enable Full-Screen",
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
                                 data = Uri.parse("package:${context.packageName}")
                             }
                             runCatching { context.startActivity(intent) }
