@@ -2,18 +2,8 @@ name: Build WakeProof APK
 
 on:
   push:
-    branches:
-      - '**'
-    tags:
-      - 'v*'
   pull_request:
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Publish APK as a GitHub Release'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
@@ -32,6 +22,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+
+      - name: Accept Android SDK licenses
+        run: |
+          if [ -n "$ANDROID_HOME" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          fi
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -60,34 +56,35 @@ jobs:
       - name: Build installable APK
         run: gradle assembleDebug
 
-      - name: Prepare clean APK filename
+      - name: Prepare APK output
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/debug/app-debug.apk dist/WakeProof-v1.0.apk
 
-      - name: Build Release APK (when release keystore secrets are configured)
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_PASSWORD != '' }}
+      - name: Build signed Release APK (optional if secrets exist)
         env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEYSTORE_PATH: ${{ github.workspace }}/release-key.jks
         run: |
-          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$KEYSTORE_PATH"
-          gradle assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk dist/WakeProof-v1.0-release.apk
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > "${{ github.workspace }}/release-key.jks"
+            KEYSTORE_PATH="${{ github.workspace }}/release-key.jks" gradle assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk dist/WakeProof-v1.0-release.apk
+          else
+            echo "No release keystore secrets configured; skipping release APK."
+          fi
 
-      - name: Upload APK artifact
+      - name: Upload WakeProof APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: WakeProof-APK
           path: dist/*.apk
           if-no-files-found: error
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+      - name: Publish GitHub Release on version tag
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0-{0}', github.run_number) }}
-          name: WakeProof ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Build #{0}', github.run_number) }}
           files: dist/*.apk
           generate_release_notes: true
