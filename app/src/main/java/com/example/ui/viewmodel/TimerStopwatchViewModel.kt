@@ -2,8 +2,10 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
+import android.os.Build
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -155,16 +157,23 @@ class TimerStopwatchViewModel(application: Application) : AndroidViewModel(appli
         _stopwatchState.value = StopwatchUiState()
     }
 
+    @Suppress("DEPRECATION")
     private fun playTimerDoneSound() {
         runCatching {
             val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
                 ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val rt = RingtoneManager.getRingtone(getApplication(), uri)
-            rt?.audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .build()
-            rt?.play()
-            activeTimerRingtone = rt
+            if (rt != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    rt.audioAttributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .build()
+                } else {
+                    rt.streamType = AudioManager.STREAM_ALARM
+                }
+                rt.play()
+                activeTimerRingtone = rt
+            }
         }
     }
 
